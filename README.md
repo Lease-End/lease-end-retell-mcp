@@ -1,6 +1,50 @@
-# RetellAI MCP Server
+# Lease End Retell MCP Server
 
-This is a Model Context Protocol (MCP) server implementation for RetellAI, allowing AI assistants to interact with RetellAI's voice services.
+**Custom fork for Lease End's diagnostic pipeline** - Based on [MCP-Mirror/abhaybabbar_retellai-mcp-server](https://github.com/MCP-Mirror/abhaybabbar_retellai-mcp-server)
+
+This is a Model Context Protocol (MCP) server implementation for RetellAI, extended with custom tools and features for the Lease End diagnostic pipeline.
+
+## 🎯 Lease End Customizations
+
+This fork adds **20 additional tools** beyond the 8 original tools, bringing the total to **28 tools** for comprehensive Retell AI integration.
+
+### Custom Tool Modules Added
+
+**Conversation Flow Management** (`conversation-flow.ts`)
+- Advanced flow operations for diagnostic analysis
+- Node prompt updates
+- Flow versioning and retrieval
+
+**Batch Testing** (`batch-test.ts`)
+- `create_batch_test` - Run automated test cases (1-200)
+- `get_batch_test` - Retrieve batch test results
+- `list_batch_tests` - List all batch tests
+- `create_test_case`, `update_test_case`, `delete_test_case`, `get_test_case`, `list_test_cases`
+
+**Knowledge Base Management** (`knowledge-base.ts`)
+- `create_knowledge_base`, `get_knowledge_base`, `list_knowledge_bases`, `delete_knowledge_base`
+- `add_knowledge_base_sources`, `delete_knowledge_base_source`
+
+**Shared Components** (`shared-component.ts`)
+- `create_shared_component`, `get_shared_component`, `update_shared_component`
+- `delete_shared_component`, `list_shared_components`
+
+**Concurrency Monitoring** (`concurrency.ts`)
+- `get_concurrency_status` - Real-time call usage tracking
+
+### Modified Core Files
+- `package.json` - Added new dependencies for extended functionality
+- `src/index.ts` - Registered 20 new tools
+- `src/schemas/index.ts` - Added schemas for new tools
+- `src/tools/index.ts` - Exported new tool modules
+
+### Use Case
+This MCP server powers the [Retell Diagnostic Pipeline](https://github.com/Lease-End/retell-diagnostic-pipeline), a 7-agent system that:
+1. Analyzes failed Retell AI voice agent calls
+2. Diagnoses root causes in conversation flows
+3. Generates targeted patches
+4. Validates patches through simulation and regression testing
+5. Presents deployment recommendations
 
 ## Features
 
@@ -98,6 +142,47 @@ The RetellAI MCP server provides tools for:
 
 - `list_voices`: Lists all available Retell voices
 - `get_voice`: Gets details of a specific voice
+
+### Conversation Flow Tools (Custom)
+
+- `get_conversation_flow`: Gets conversation flow definition
+- `update_conversation_flow`: Updates conversation flow
+- `update_conversation_flow_node_prompt`: Updates individual node instructions
+
+### Batch Testing Tools (Custom)
+
+- `create_batch_test`: Run automated test cases
+- `get_batch_test`: Get batch test results
+- `list_batch_tests`: List all batch tests
+- `create_test_case`, `update_test_case`, `delete_test_case`, `get_test_case`, `list_test_cases`
+
+### Knowledge Base Tools (Custom)
+
+- `create_knowledge_base`, `get_knowledge_base`, `list_knowledge_bases`, `delete_knowledge_base`
+- `add_knowledge_base_sources`, `delete_knowledge_base_source`
+
+### Shared Component Tools (Custom)
+
+- `create_shared_component`, `get_shared_component`, `update_shared_component`
+- `delete_shared_component`, `list_shared_components`
+
+### Monitoring Tools (Custom)
+
+- `get_concurrency_status`: Check concurrent call usage and limits
+
+---
+
+**Total: 28 tools** (8 original + 20 custom)
+
+## Upstream Sync
+
+To pull updates from the original MCP-Mirror repository:
+
+```bash
+git fetch upstream
+git merge upstream/main
+# Resolve any conflicts between custom changes and upstream updates
+```
 
 ## License
 
