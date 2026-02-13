@@ -316,7 +316,7 @@ export function transformRetellLLMInput(
     // states: input.states,
     // starting_state: input.starting_state,
     begin_message: input.begin_message,
-    default_dynamic_variables: input.default_dynamic_variables,
+    default_dynamic_variables: input.default_dynamic_variables as { [key: string]: string } | undefined,
     knowledge_base_ids: input.knowledge_base_ids,
   };
 }

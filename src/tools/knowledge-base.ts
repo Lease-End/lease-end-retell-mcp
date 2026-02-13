@@ -81,9 +81,10 @@ export const registerKnowledgeBaseTools = (
     createToolHandler(async (data) => {
       try {
         const { knowledgeBaseId, sources } = data;
+        // Updated API: sources are passed directly, not wrapped
         const result = await retellClient.knowledgeBase.addSources(
           knowledgeBaseId,
-          { sources }
+          sources as any
         );
         return result;
       } catch (error: any) {

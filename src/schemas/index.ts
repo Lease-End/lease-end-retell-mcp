@@ -36,9 +36,9 @@ export const CreatePhoneCallInputSchema = z.object({
       "For this particular call, override the agent version used with this version"
     ),
   direction: z.enum(["inbound", "outbound"]).default("outbound"),
-  metadata: z.record(z.string()).optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
   retellLlmDynamicVariables: z
-    .record(z.string())
+    .record(z.string(), z.string())
     .optional()
     .describe("Dynamic variables to pass to the LLM in key-value pairs"),
   optOutSensitiveDataStorage: z.boolean().optional(),
@@ -48,9 +48,9 @@ export const CreatePhoneCallInputSchema = z.object({
 // Web Call Input Schema
 export const CreateWebCallInputSchema = z.object({
   agentId: z.string().describe("The ID of the agent to use for the call"),
-  metadata: z.record(z.string()).optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
   retellLlmDynamicVariables: z
-    .record(z.string())
+    .record(z.string(), z.string())
     .optional()
     .describe("Dynamic variables to pass to the LLM in key-value pairs"),
   optOutSensitiveDataStorage: z.boolean().optional(),
@@ -69,7 +69,7 @@ export const CallOutputSchema = z.object({
   agent_id: z.string(),
   version: z.number(),
   call_status: CallStatusSchema,
-  metadata: z.record(z.string()).optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
   start_timestamp: z.number().optional(),
   end_timestamp: z.number().optional(),
   transcript: z.string().optional(),
@@ -83,7 +83,7 @@ export const CallOutputSchema = z.object({
         .enum(["Negative", "Positive", "Neutral", "Unknown"])
         .optional(),
       call_successful: z.boolean().optional(),
-      custom_analysis_data: z.record(z.any()).optional(),
+      custom_analysis_data: z.record(z.string(), z.any()).optional(),
     })
     .optional(),
   call_cost: z
@@ -121,8 +121,8 @@ export const ListCallsInputSchema = z.object({
 // Update Call Input Schema
 export const UpdateCallInputSchema = z.object({
   callId: z.string().describe("The ID of the call to update"),
-  metadata: z.record(z.string()).optional(),
-  dynamicVariables: z.record(z.string()).optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
+  dynamicVariables: z.record(z.string(), z.string()).optional(),
 });
 
 // Delete Call Input Schema
@@ -188,10 +188,12 @@ export const CreateAgentInputSchema = z.object({
       "eleven_turbo_v2_5",
       "eleven_flash_v2_5",
       "eleven_multilingual_v2",
-      "Play3.0-mini",
-      "PlayDialog",
+      "tts-1",
+      "gpt-4o-mini-tts",
     ])
     .optional(),
+  // Additional optional agent settings (commented out for minimal create schema):
+  // These fields are available in UpdateAgentInputSchema for full configurability
   // fallback_voice_ids: z.array(z.string()).optional(),
   // voice_temperature: z.number().optional(),
   // voice_speed: z.number().optional(),
@@ -425,7 +427,7 @@ export const VoiceOutputSchema = z.object({
 // ===== Knowledge Base Schemas =====
 
 export const CreateKnowledgeBaseInputSchema = z.object({
-  name: z.string().describe("Name of the knowledge base"),
+  knowledge_base_name: z.string().describe("Name of the knowledge base"),
   description: z.string().optional(),
 });
 
@@ -484,19 +486,20 @@ export const CreateRetellLLMInputSchema = z.object({
   version: z.number().optional().describe("Version of the Retell LLM"),
   model: z
     .enum([
-      "gpt-4o",
-      "gpt-4o-mini",
       "gpt-4.1",
       "gpt-4.1-mini",
       "gpt-4.1-nano",
-      "claude-3.7-sonnet",
-      "claude-3.5-haiku",
-      "gemini-2.0-flash",
-      "gemini-2.0-flash-lite",
+      "gpt-5",
+      "gpt-5-mini",
+      "gpt-5-nano",
+      "claude-4.5-sonnet",
+      "claude-4.5-haiku",
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
     ])
     .optional()
     .describe(
-      "Select the underlying text LLM. If not set, would default to gpt-4o"
+      "Select the underlying text LLM. If not set, would default to gpt-4.1"
     ),
   s2s_model: z
     .enum(["gpt-4o-realtime", "gpt-4o-mini-realtime"])
@@ -598,7 +601,7 @@ export const CreateRetellLLMInputSchema = z.object({
               parameters: z
                 .object({
                   type: z.literal("object"),
-                  properties: z.record(z.any()),
+                  properties: z.record(z.string(), z.any()),
                   required: z.array(z.string()),
                 })
                 .optional(),
@@ -676,7 +679,7 @@ export const CreateRetellLLMInputSchema = z.object({
     .optional()
     .describe("First utterance said by the agent in the call"),
   default_dynamic_variables: z
-    .record(z.string())
+    .record(z.string(), z.string())
     .optional()
     .describe(
       "Default dynamic variables represented as key-value pairs of strings"
@@ -696,15 +699,16 @@ export const UpdateRetellLLMInputSchema = z.object({
   version: z.number().optional(),
   model: z
     .enum([
-      "gpt-4o",
-      "gpt-4o-mini",
       "gpt-4.1",
       "gpt-4.1-mini",
       "gpt-4.1-nano",
-      "claude-3.7-sonnet",
-      "claude-3.5-haiku",
-      "gemini-2.0-flash",
-      "gemini-2.0-flash-lite",
+      "gpt-5",
+      "gpt-5-mini",
+      "gpt-5-nano",
+      "claude-4.5-sonnet",
+      "claude-4.5-haiku",
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
     ])
     .optional(),
   s2s_model: z.enum(["gpt-4o-realtime", "gpt-4o-mini-realtime"]).optional(),
@@ -757,7 +761,7 @@ export const UpdateRetellLLMInputSchema = z.object({
   //   .optional(),
   // starting_state: z.string().nullable().optional(),
   begin_message: z.string().optional(),
-  default_dynamic_variables: z.record(z.string()).optional(),
+  default_dynamic_variables: z.record(z.string(), z.string()).optional(),
   knowledge_base_ids: z.array(z.string()).optional(),
 });
 
@@ -816,7 +820,7 @@ export const RetellLLMOutputSchema = z.object({
   //   .optional(),
   // starting_state: z.string().nullable().optional(),
   begin_message: z.string().nullable().optional(),
-  default_dynamic_variables: z.record(z.string()).nullable().optional(),
+  default_dynamic_variables: z.record(z.string(), z.string()).nullable().optional(),
   knowledge_base_ids: z.array(z.string()).nullable().optional(),
   last_modification_timestamp: z.number(),
 });
@@ -856,7 +860,7 @@ export const UpdateConversationFlowInputSchema = z.object({
     .optional()
     .describe("ID of the starting node in the flow"),
   default_dynamic_variables: z
-    .record(z.string())
+    .record(z.string(), z.string())
     .optional()
     .describe(
       "Default dynamic variables as key-value pairs of strings"
@@ -916,7 +920,7 @@ export const CreateTestCaseInputSchema = z.object({
     )
     .describe("Simulated conversation turns"),
   expected_variables: z
-    .record(z.any())
+    .record(z.string(), z.any())
     .optional()
     .describe("Expected variable values after test"),
   expected_node_path: z
@@ -940,7 +944,7 @@ export const UpdateTestCaseInputSchema = z.object({
       })
     )
     .optional(),
-  expected_variables: z.record(z.any()).optional(),
+  expected_variables: z.record(z.string(), z.any()).optional(),
   expected_node_path: z.array(z.string()).optional(),
 });
 

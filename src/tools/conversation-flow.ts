@@ -13,6 +13,9 @@ export const registerConversationFlowTools = (
   server: McpServer,
   retellClient: Retell
 ) => {
+  // TypeScript note: Using type assertion for internal SDK methods
+  // The retell-sdk doesn't export types for raw HTTP methods (.get, .patch, .delete)
+  // but they exist on the client for advanced usage
   const client = retellClient as any;
 
   server.tool(
