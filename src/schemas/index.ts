@@ -881,6 +881,70 @@ export const UpdateConversationFlowNodePromptInputSchema = z.object({
     ),
 });
 
+export const UpdateConversationFlowNodeEdgeInputSchema = z.object({
+  conversationFlowId: z
+    .string()
+    .describe("The ID of the conversation flow containing the node"),
+  nodeId: z
+    .string()
+    .describe("The ID of the node containing the edge"),
+  edgeId: z
+    .string()
+    .describe("The ID of the specific edge to update"),
+  transitionCondition: z
+    .object({
+      type: z
+        .enum(["prompt", "equation"])
+        .describe("Type of transition condition"),
+      prompt: z
+        .string()
+        .optional()
+        .describe("Prompt-based condition text (required when type is 'prompt')"),
+      equation: z
+        .string()
+        .optional()
+        .describe("Equation-based condition (required when type is 'equation')"),
+    })
+    .refine(
+      (data) =>
+        (data.type === "prompt" && typeof data.prompt === "string") ||
+        (data.type === "equation" && typeof data.equation === "string"),
+      { message: "Must provide 'prompt' when type is 'prompt', or 'equation' when type is 'equation'" }
+    )
+    .describe("The new transition condition for the edge"),
+});
+
+export const UpdateConversationFlowNodeFinetuneExamplesInputSchema = z.object({
+  conversationFlowId: z
+    .string()
+    .describe("The ID of the conversation flow containing the node"),
+  nodeId: z
+    .string()
+    .describe("The ID of the node to update"),
+  field: z
+    .enum(["finetune_conversation_examples", "finetune_transition_examples"])
+    .describe("Which finetune example field to update"),
+  examples: z
+    .array(
+      z.object({
+        transcript: z
+          .array(
+            z.object({
+              role: z.enum(["user", "agent"]).describe("Speaker role"),
+              content: z.string().describe("Message content"),
+            })
+          )
+          .describe("Conversation turns for this example"),
+        id: z.string().describe("Unique example ID"),
+        destination_node_id: z
+          .string()
+          .optional()
+          .describe("Target node ID (for transition examples)"),
+      })
+    )
+    .describe("Complete replacement array of finetune examples"),
+});
+
 export const DeleteConversationFlowInputSchema = z.object({
   conversationFlowId: z
     .string()

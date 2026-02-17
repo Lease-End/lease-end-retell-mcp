@@ -5,6 +5,8 @@ import {
   GetConversationFlowInputSchema,
   UpdateConversationFlowInputSchema,
   UpdateConversationFlowNodePromptInputSchema,
+  UpdateConversationFlowNodeEdgeInputSchema,
+  UpdateConversationFlowNodeFinetuneExamplesInputSchema,
   DeleteConversationFlowInputSchema,
 } from "../schemas/index.js";
 import { createToolHandler } from "./utils.js";
@@ -100,6 +102,73 @@ export const registerConversationFlowTools = (
   );
 
   server.tool(
+    "update_conversation_flow_node_edge",
+    "Updates the transition condition of a single edge on a node. Fetches the flow, finds the node and edge by ID, replaces the transition condition, and saves.",
+    UpdateConversationFlowNodeEdgeInputSchema.shape,
+    createToolHandler(async (data) => {
+      try {
+        const { conversationFlowId, nodeId, edgeId, transitionCondition } =
+          data;
+
+        const flow = await client.get(
+          `/get-conversation-flow/${conversationFlowId}`
+        );
+
+        const updatedNodes = findAndUpdateEdgeCondition(
+          flow.nodes,
+          nodeId,
+          edgeId,
+          transitionCondition
+        );
+
+        const updated = await client.patch(
+          `/update-conversation-flow/${conversationFlowId}`,
+          { body: { nodes: updatedNodes } }
+        );
+        return updated;
+      } catch (error: any) {
+        console.error(
+          `Error updating conversation flow node edge: ${error.message}`
+        );
+        throw error;
+      }
+    })
+  );
+
+  server.tool(
+    "update_conversation_flow_node_finetune_examples",
+    "Updates finetune examples on a single node. Fetches the flow, finds the node by ID, replaces the specified finetune example field, and saves.",
+    UpdateConversationFlowNodeFinetuneExamplesInputSchema.shape,
+    createToolHandler(async (data) => {
+      try {
+        const { conversationFlowId, nodeId, field, examples } = data;
+
+        const flow = await client.get(
+          `/get-conversation-flow/${conversationFlowId}`
+        );
+
+        const updatedNodes = findAndUpdateFinetuneExamples(
+          flow.nodes,
+          nodeId,
+          field,
+          examples
+        );
+
+        const updated = await client.patch(
+          `/update-conversation-flow/${conversationFlowId}`,
+          { body: { nodes: updatedNodes } }
+        );
+        return updated;
+      } catch (error: any) {
+        console.error(
+          `Error updating conversation flow node finetune examples: ${error.message}`
+        );
+        throw error;
+      }
+    })
+  );
+
+  server.tool(
     "delete_conversation_flow",
     "Deletes a conversation flow",
     DeleteConversationFlowInputSchema.shape,
@@ -137,6 +206,75 @@ function findAndUpdateNodePrompt(
       `Node ${nodeId} not found in conversation flow. Available node IDs: ${nodes.map((n: any) => n.id).join(", ")}`
     );
   }
-  node.instruction = instruction;
+  if (node.instruction && typeof node.instruction === "object") {
+    node.instruction = { ...node.instruction, text: instruction };
+  } else {
+    node.instruction = { type: "prompt", text: instruction };
+  }
+  return nodes;
+}
+
+function findAndUpdateEdgeCondition(
+  nodes: any[],
+  nodeId: string,
+  edgeId: string,
+  transitionCondition: { type: string; prompt?: string; equation?: string }
+): any[] {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    throw new Error(
+      `Conversation flow has no nodes. Cannot find node ${nodeId}.`
+    );
+  }
+
+  const node = nodes.find((n: any) => n.id === nodeId);
+  if (!node) {
+    throw new Error(
+      `Node ${nodeId} not found in conversation flow. Available node IDs: ${nodes.map((n: any) => n.id).join(", ")}`
+    );
+  }
+
+  if (!Array.isArray(node.edges) || node.edges.length === 0) {
+    throw new Error(
+      `Node ${nodeId} has no edges. Cannot find edge ${edgeId}.`
+    );
+  }
+
+  const edge = node.edges.find((e: any) => e.id === edgeId);
+  if (!edge) {
+    throw new Error(
+      `Edge ${edgeId} not found on node ${nodeId}. Available edges: ${node.edges.map((e: any) => `${e.id} (→ ${e.destination_node_id})`).join(", ")}`
+    );
+  }
+
+  edge.transition_condition = transitionCondition;
+  return nodes;
+}
+
+function findAndUpdateFinetuneExamples(
+  nodes: any[],
+  nodeId: string,
+  field: string,
+  examples: any[]
+): any[] {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    throw new Error(
+      `Conversation flow has no nodes. Cannot find node ${nodeId}.`
+    );
+  }
+
+  const node = nodes.find((n: any) => n.id === nodeId);
+  if (!node) {
+    throw new Error(
+      `Node ${nodeId} not found in conversation flow. Available node IDs: ${nodes.map((n: any) => n.id).join(", ")}`
+    );
+  }
+
+  if (node.type && node.type !== "conversation") {
+    throw new Error(
+      `Node ${nodeId} is of type "${node.type}" which does not support finetune examples. Only "conversation" nodes have finetune example fields.`
+    );
+  }
+
+  node[field] = examples;
   return nodes;
 }
