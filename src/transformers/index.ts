@@ -202,6 +202,8 @@ export function transformUpdateAgentInput(
   if (input.ring_duration_ms !== undefined)
     updateData.ring_duration_ms = input.ring_duration_ms;
   if (input.stt_mode !== undefined) updateData.stt_mode = input.stt_mode;
+  if (input.guardrail_config !== undefined)
+    updateData.guardrail_config = input.guardrail_config;
 
   return updateData;
 }
@@ -247,6 +249,7 @@ export function transformAgentOutput(
     begin_message_delay_ms: agent.begin_message_delay_ms,
     ring_duration_ms: agent.ring_duration_ms,
     stt_mode: agent.stt_mode,
+    guardrail_config: agent.guardrail_config,
     last_modification_timestamp: agent.last_modification_timestamp,
   };
 }

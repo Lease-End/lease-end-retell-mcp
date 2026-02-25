@@ -6,6 +6,7 @@ import {
   UpdateConversationFlowInputSchema,
   UpdateConversationFlowNodePromptInputSchema,
   UpdateConversationFlowNodeEdgeInputSchema,
+  UpdateConversationFlowNodeAlwaysEdgeInputSchema,
   UpdateConversationFlowNodeFinetuneExamplesInputSchema,
   DeleteConversationFlowInputSchema,
 } from "../schemas/index.js";
@@ -136,6 +137,40 @@ export const registerConversationFlowTools = (
   );
 
   server.tool(
+    "update_conversation_flow_node_always_edge",
+    "Adds, removes, or changes the mode of an always/skip_response edge on a node. These are unconditional transitions that bypass condition evaluation. 'always' fires after any user response; 'skip_response' fires immediately without waiting for user input.",
+    UpdateConversationFlowNodeAlwaysEdgeInputSchema.shape,
+    createToolHandler(async (data) => {
+      try {
+        const { conversationFlowId, nodeId, action, mode, destinationNodeId } = data;
+
+        const flow = await client.get(
+          `/get-conversation-flow/${conversationFlowId}`
+        );
+
+        const updatedNodes = findAndUpdateAlwaysEdge(
+          flow.nodes,
+          nodeId,
+          action,
+          mode,
+          destinationNodeId
+        );
+
+        const updated = await client.patch(
+          `/update-conversation-flow/${conversationFlowId}`,
+          { body: { nodes: updatedNodes } }
+        );
+        return updated;
+      } catch (error: any) {
+        console.error(
+          `Error updating conversation flow node always edge: ${error.message}`
+        );
+        throw error;
+      }
+    })
+  );
+
+  server.tool(
     "update_conversation_flow_node_finetune_examples",
     "Updates finetune examples on a single node. Fetches the flow, finds the node by ID, replaces the specified finetune example field, and saves.",
     UpdateConversationFlowNodeFinetuneExamplesInputSchema.shape,
@@ -218,7 +253,7 @@ function findAndUpdateEdgeCondition(
   nodes: any[],
   nodeId: string,
   edgeId: string,
-  transitionCondition: { type: string; prompt?: string; equation?: string }
+  transitionCondition: { type: string; prompt?: string; operator?: string; equations?: Array<{ left: string; operator: string; right?: string }> }
 ): any[] {
   if (!Array.isArray(nodes) || nodes.length === 0) {
     throw new Error(
@@ -233,20 +268,145 @@ function findAndUpdateEdgeCondition(
     );
   }
 
-  if (!Array.isArray(node.edges) || node.edges.length === 0) {
+  // First, search conditional edges array
+  if (Array.isArray(node.edges) && node.edges.length > 0) {
+    const edge = node.edges.find((e: any) => e.id === edgeId);
+    if (edge) {
+      edge.transition_condition = transitionCondition;
+      return nodes;
+    }
+  }
+
+  // Always/skip_response edges are unconditional — transition conditions don't apply
+  if (node.always_edge?.id === edgeId) {
     throw new Error(
-      `Node ${nodeId} has no edges. Cannot find edge ${edgeId}.`
+      `Edge ${edgeId} on node ${nodeId} is an always_edge (unconditional). ` +
+      `Use update_conversation_flow_node_always_edge to modify it.`
+    );
+  }
+  if (node.skip_response_edge?.id === edgeId) {
+    throw new Error(
+      `Edge ${edgeId} on node ${nodeId} is a skip_response_edge (unconditional). ` +
+      `Use update_conversation_flow_node_always_edge to modify it.`
     );
   }
 
-  const edge = node.edges.find((e: any) => e.id === edgeId);
-  if (!edge) {
+  // Build helpful error listing all available edges
+  const availableEdges: string[] = [];
+  if (Array.isArray(node.edges)) {
+    availableEdges.push(...node.edges.map((e: any) => `${e.id} (→ ${e.destination_node_id})`));
+  }
+  if (node.always_edge) {
+    availableEdges.push(`${node.always_edge.id} (always → ${node.always_edge.destination_node_id})`);
+  }
+  if (node.skip_response_edge) {
+    availableEdges.push(`${node.skip_response_edge.id} (skip_response → ${node.skip_response_edge.destination_node_id})`);
+  }
+
+  if (availableEdges.length === 0) {
     throw new Error(
-      `Edge ${edgeId} not found on node ${nodeId}. Available edges: ${node.edges.map((e: any) => `${e.id} (→ ${e.destination_node_id})`).join(", ")}`
+      `Node ${nodeId} has no edges (conditional, always, or skip_response). Cannot find edge ${edgeId}.`
     );
   }
 
-  edge.transition_condition = transitionCondition;
+  throw new Error(
+    `Edge ${edgeId} not found on node ${nodeId}. Available edges: ${availableEdges.join(", ")}`
+  );
+}
+
+function generateEdgeId(): string {
+  // Generate a random edge ID matching Retell's format (e.g., "edge-1768419537209-i2zk6s4iy")
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const timestamp = Date.now();
+  let suffix = "";
+  for (let i = 0; i < 9; i++) {
+    suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `edge-${timestamp}-${suffix}`;
+}
+
+function findAndUpdateAlwaysEdge(
+  nodes: any[],
+  nodeId: string,
+  action: string,
+  mode?: string,
+  destinationNodeId?: string
+): any[] {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    throw new Error(
+      `Conversation flow has no nodes. Cannot find node ${nodeId}.`
+    );
+  }
+
+  const node = nodes.find((n: any) => n.id === nodeId);
+  if (!node) {
+    throw new Error(
+      `Node ${nodeId} not found in conversation flow. Available node IDs: ${nodes.map((n: any) => n.id).join(", ")}`
+    );
+  }
+
+  if (action === "add") {
+    if (!mode) {
+      throw new Error(`'mode' is required for 'add' action. Must be 'always' or 'skip_response'.`);
+    }
+    if (!destinationNodeId) {
+      throw new Error(`'destinationNodeId' is required for 'add' action.`);
+    }
+    if (node.always_edge || node.skip_response_edge) {
+      const existing = node.always_edge ? "always_edge" : "skip_response_edge";
+      throw new Error(
+        `Node ${nodeId} already has a ${existing}. Remove it first or use 'change_mode' to switch modes.`
+      );
+    }
+
+    const newEdge = {
+      id: generateEdgeId(),
+      destination_node_id: destinationNodeId,
+    };
+
+    if (mode === "always") {
+      node.always_edge = newEdge;
+    } else {
+      node.skip_response_edge = newEdge;
+    }
+  } else if (action === "remove") {
+    if (!node.always_edge && !node.skip_response_edge) {
+      throw new Error(
+        `Node ${nodeId} has no always_edge or skip_response_edge to remove.`
+      );
+    }
+    delete node.always_edge;
+    delete node.skip_response_edge;
+  } else if (action === "change_mode") {
+    if (!mode) {
+      throw new Error(`'mode' is required for 'change_mode' action. Must be 'always' or 'skip_response'.`);
+    }
+
+    // Find the existing edge (either type)
+    const existingEdge = node.always_edge || node.skip_response_edge;
+    if (!existingEdge) {
+      throw new Error(
+        `Node ${nodeId} has no always_edge or skip_response_edge to change mode on.`
+      );
+    }
+
+    // Preserve the edge data but swap the field
+    const edgeData = { ...existingEdge };
+    if (destinationNodeId) {
+      edgeData.destination_node_id = destinationNodeId;
+    }
+    delete node.always_edge;
+    delete node.skip_response_edge;
+
+    if (mode === "always") {
+      node.always_edge = edgeData;
+    } else {
+      node.skip_response_edge = edgeData;
+    }
+  } else {
+    throw new Error(`Unknown action '${action}'. Must be 'add', 'remove', or 'change_mode'.`);
+  }
+
   return nodes;
 }
 

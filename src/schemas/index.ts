@@ -320,6 +320,19 @@ export const UpdateAgentInputSchema = z.object({
   begin_message_delay_ms: z.number().optional(),
   ring_duration_ms: z.number().optional(),
   stt_mode: z.enum(["fast", "accurate"]).optional(),
+  guardrail_config: z
+    .object({
+      output_topics: z
+        .array(z.string())
+        .optional()
+        .describe("Output content filtering topics (e.g., 'harassment', 'violence')"),
+      input_topics: z
+        .array(z.string())
+        .optional()
+        .describe("Input content filtering topics (e.g., 'platform_integrity_jailbreaking')"),
+    })
+    .optional()
+    .describe("Agent-level guardrail configuration for content filtering"),
 });
 
 export const AgentOutputSchema = z.object({
@@ -372,7 +385,21 @@ export const AgentOutputSchema = z.object({
   begin_message_delay_ms: z.number().optional(),
   ring_duration_ms: z.number().optional(),
   stt_mode: z.enum(["fast", "accurate"]).optional(),
+  guardrail_config: z
+    .object({
+      output_topics: z.array(z.string()).optional(),
+      input_topics: z.array(z.string()).optional(),
+    })
+    .optional(),
   last_modification_timestamp: z.number(),
+});
+
+export const PublishAgentInputSchema = z.object({
+  agentId: z.string().describe("The ID of the agent to publish"),
+  version_description: z
+    .string()
+    .optional()
+    .describe("Optional description for this published version"),
 });
 
 // ===== Phone Number Schemas =====
@@ -865,6 +892,14 @@ export const UpdateConversationFlowInputSchema = z.object({
     .describe(
       "Default dynamic variables as key-value pairs of strings"
     ),
+  knowledge_base_ids: z
+    .array(z.string())
+    .optional()
+    .describe("Array of knowledge base IDs to attach to this flow"),
+  model_temperature: z
+    .number()
+    .optional()
+    .describe("Model temperature for the flow (0-1). Controls response randomness."),
 });
 
 export const UpdateConversationFlowNodePromptInputSchema = z.object({
@@ -900,16 +935,31 @@ export const UpdateConversationFlowNodeEdgeInputSchema = z.object({
         .string()
         .optional()
         .describe("Prompt-based condition text (required when type is 'prompt')"),
-      equation: z
-        .string()
+      operator: z
+        .enum(["||", "&&"])
         .optional()
-        .describe("Equation-based condition (required when type is 'equation')"),
+        .describe("Logical combinator for equation conditions: '&&' (AND) or '||' (OR). Required when type is 'equation'."),
+      equations: z
+        .array(
+          z.object({
+            left: z.string().describe("Left side of the equation, e.g. '{{variable_name}}'"),
+            operator: z
+              .enum(["==", "!=", ">", ">=", "<", "<=", "contains", "not_contains", "exists", "not_exist"])
+              .describe("Comparison operator"),
+            right: z
+              .string()
+              .optional()
+              .describe("Right side of the equation. Not required when operator is 'exists' or 'not_exist'."),
+          })
+        )
+        .optional()
+        .describe("Array of equation conditions. Required when type is 'equation'."),
     })
     .refine(
       (data) =>
         (data.type === "prompt" && typeof data.prompt === "string") ||
-        (data.type === "equation" && typeof data.equation === "string"),
-      { message: "Must provide 'prompt' when type is 'prompt', or 'equation' when type is 'equation'" }
+        (data.type === "equation" && Array.isArray(data.equations) && data.equations.length > 0 && typeof data.operator === "string"),
+      { message: "Must provide 'prompt' when type is 'prompt', or 'equations' array and 'operator' when type is 'equation'" }
     )
     .describe("The new transition condition for the edge"),
 });
@@ -943,6 +993,26 @@ export const UpdateConversationFlowNodeFinetuneExamplesInputSchema = z.object({
       })
     )
     .describe("Complete replacement array of finetune examples"),
+});
+
+export const UpdateConversationFlowNodeAlwaysEdgeInputSchema = z.object({
+  conversationFlowId: z
+    .string()
+    .describe("The ID of the conversation flow containing the node"),
+  nodeId: z
+    .string()
+    .describe("The ID of the node to update"),
+  action: z
+    .enum(["add", "remove", "change_mode"])
+    .describe("Action to perform: add a new always/skip_response edge, remove the existing one, or change its mode"),
+  mode: z
+    .enum(["always", "skip_response"])
+    .optional()
+    .describe("Edge mode. Required for 'add' and 'change_mode' actions. 'always' fires after any user response, 'skip_response' fires immediately without waiting for user input."),
+  destinationNodeId: z
+    .string()
+    .optional()
+    .describe("Target node ID for the edge. Required for 'add' action."),
 });
 
 export const DeleteConversationFlowInputSchema = z.object({

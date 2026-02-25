@@ -5,6 +5,7 @@ import {
   CreateAgentInputSchema,
   GetAgentInputSchema,
   UpdateAgentInputSchema,
+  PublishAgentInputSchema,
 } from "../schemas/index.js";
 import {
   transformAgentInput,
@@ -14,6 +15,10 @@ import {
 import { createToolHandler } from "./utils.js";
 
 export const registerAgentTools = (server: McpServer, retellClient: Retell) => {
+  // TypeScript note: Using type assertion for internal SDK methods
+  // The retell-sdk doesn't export types for raw HTTP methods (.post)
+  // but they exist on the client for advanced usage
+  const client = retellClient as any;
   server.tool(
     "list_agents",
     "Lists all Retell agents",
@@ -106,6 +111,28 @@ export const registerAgentTools = (server: McpServer, retellClient: Retell) => {
         return versions;
       } catch (error: any) {
         console.error(`Error getting agent versions: ${error.message}`);
+        throw error;
+      }
+    })
+  );
+
+  server.tool(
+    "publish_agent",
+    "Publishes the current agent configuration as a versioned snapshot. Use before and after applying patches to create rollback points.",
+    PublishAgentInputSchema.shape,
+    createToolHandler(async (data) => {
+      try {
+        const body: any = {};
+        if (data.version_description) {
+          body.version_description = data.version_description;
+        }
+        const result = await client.post(
+          `/publish-agent/${data.agentId}`,
+          { body }
+        );
+        return result;
+      } catch (error: any) {
+        console.error(`Error publishing agent: ${error.message}`);
         throw error;
       }
     })
